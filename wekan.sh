@@ -18,6 +18,31 @@ NPM=$(which npm)
 N=$(which n)
 WEKAN_BUILD=$(pwd)/Wekan
 
+# START WEKAN SETTINGS
+
+# 1) Full URL to your wekan, for example:
+#     http://example.com/wekan
+#     http://192.168.100.1
+#     http://192.168.100.1:3000
+ROOT_URL='http://example.com'
+
+# 2) URL to MongoDB database
+MONGO_URL='mongodb://127.0.0.1:27017/admin'
+
+# 3) SMTP server URL. Remember to also setup same settings in Admin Panel.
+#    Also see https://github.com/wekan/wekan/wiki/Troubleshooting-Mail
+MAIL_URL='smtp://user:pass@mailserver.example.com:25/'
+
+# 5) Port where Wekan is running on localhost
+PORT=3000
+
+# END WEKAN SETTINGS
+
+
+
+
+# START INSTALL
+
 # init
 declare -a NODE_MODULES=('/usr/local/lib/node_modules' '~/.npm');
 
@@ -40,7 +65,7 @@ function git_clone_wekan {
     else
         echo "[OK]"
     fi
-    
+
     $GIT clone https://github.com/wekan/wekan
     if [[ $? -gt 0 ]]; then
         echo "[FAILED]"
@@ -70,10 +95,10 @@ function git_clone_wekan_packages {
 }
 function clear_wekan {
     #clean node modules
-    	rm -rf $(pwd)/wekan
+    rm -rf $(pwd)/wekan
 }
 function install_node {
-	rm -rf node_modules
+    rm -rf node_modules
 
 	if [[ $USE_SUDO -eq 1 ]]; then
 		echo "Insert password for $USER"
@@ -116,7 +141,7 @@ function build_wekan {
     if [[ -d "$(pwd)/wekan" ]]; then
         echo "Existing sources found."
         read -p "Do you want to clear sources?" SOURCES_DELETE
-    
+
         if [[ $SOURCES_DELETE = 'y' || $SOURCES_DELETE = 'Y' ]]; then
             clear_wekan
 			git_clone_wekan
@@ -129,8 +154,8 @@ function build_wekan {
 
 	del_wekan_build
 	install_node
-    config_wekan	
-	
+    config_wekan
+
 	#
 	# Building with meteor
 	# TODO Handle meteor
@@ -176,10 +201,10 @@ fi
 
 if [[ "$1" = '--start' ]]; then
 	pushd $WEKAN_BUILD/bundle
-	export MONGO_URL='mongodb://127.0.0.1:27017/admin'
-	export ROOT_URL='sinusia.com:3000'
-	export MAIL_URL='smtp://user:pass@mailserver.example.com:25/'
-	export PORT=3000
+	export MONGO_URL=$MONGO_URL
+	export ROOT_URL=$ROOT_URL
+	export MAIL_URL=$MAIL_URL
+	export PORT=$PORT
 	node main.js
 fi
 
@@ -216,3 +241,5 @@ if [[ "$1" = '' ]]; then
 	fi
 
 fi
+
+# END INSTALL
