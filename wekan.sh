@@ -5,20 +5,32 @@
 # - written by Salvatore De Paolis <iwkse@claws-mail.org>
 # Copyright 2017, GNU General Public License Version 3
 
-VERSION=0.1.0
+GOSU_VERSION=1.10
+SCRIPT_VERSION=0.2.0
+
+NODE_VERSION=4.8.4
+METEOR_RELEASE=1.4.4.1
+METEOR_EDGE=1.5.beta.17
+NPM_VERSION=4.6.1
+FIBERS_VERSION=1.0.15
+BUILD_DEPS="build-essential g++ capnproto nodejs nodejs-legacy npm git curl"
+
 SUDO=$(which sudo)
 SU=$(which su)
 NODE=$(which node)
 RM=$(which rm)
 GIT=$(which git)
-WEKAN=$(pwd)/wekan
+WGET="$(which wget) -qO-"
 APT=$(which apt-get)
-NODE="build-essential g++ capnproto nodejs nodejs-legacy npm git curl"
 NPM=$(which npm)
+METEOR=$(which meteor)
 N=$(which n)
-WEKAN_BUILD=$(pwd)/Wekan
 
-# START WEKAN SETTINGS
+WEKAN=$(pwd)/wekan
+WEKAN_SRC=$WEKAN/src
+WEKAN_BUILD=$WEKAN/build
+
+# START WEKAN_SRC SETTINGS
 
 # 1) Full URL to your wekan, for example:
 #     http://example.com/wekan
@@ -36,19 +48,14 @@ MAIL_URL='smtp://user:pass@mailserver.example.com:25/'
 # 5) Port where Wekan is running on localhost
 PORT=3000
 
-# END WEKAN SETTINGS
-
-
-
-
-# START INSTALL
+# END WEKAN_SRC SETTINGS
 
 # init
 declare -a NODE_MODULES=('/usr/local/lib/node_modules' '~/.npm');
 
 function config_wekan {
-	sed -i 's/api\.versionsFrom/\/\/api.versionsFrom/' $WEKAN/packages/meteor-useraccounts-core/package.js
-	test $WEKAN/package-lock.json || rm $WEKAN/package-lock.json
+	sed -i 's/api\.versionsFrom/\/\/api.versionsFrom/' $WEKAN_SRC/packages/meteor-useraccounts-core/package.js
+	test $WEKAN_SRC/package-lock.json || rm $WEKAN_SRC/package-lock.json
 }
 
 function use_command {
@@ -66,7 +73,9 @@ function git_clone_wekan {
         echo "[OK]"
     fi
 
-    $GIT clone https://github.com/wekan/wekan
+    test -d $WEKAN || mkdir $WEKAN
+    pushd $WEKAN
+    $GIT clone https://github.com/wekan/wekan src
     if [[ $? -gt 0 ]]; then
         echo "[FAILED]"
         echo "An unknown error accourred: $?"
@@ -75,7 +84,7 @@ function git_clone_wekan {
 }
 
 function git_clone_wekan_packages {
-    pushd $(pwd)/wekan && mkdir packages && pushd packages
+    pushd $WEKAN_SRC && mkdir packages && pushd packages
 
     $GIT clone https://github.com/wekan/flow-router.git kadira-flow-router
     if [[ $? -gt 0 ]]; then
@@ -90,33 +99,44 @@ function git_clone_wekan_packages {
         echo "An unknown error accourred: $?"
         exit
     fi
-    echo "OK"
-	popd
+    popd
 }
 function clear_wekan {
     #clean node modules
     rm -rf $(pwd)/wekan
 }
+function install_deps {
+    for d in $BUILD_DEPS;
+    do
+        test -z $(dpkg -l | grep $d | awk 'print $2') && PKG_INST=1
+    done
+
+    if [[ $PKG_INST -eq 1 ]]; then
+        $APT install $BUILD_DEPS
+    fi
+    test -f $METEOR || PKG_INST=1
+    if [[ $PKG_INST -eq 1 ]]; then
+        $WGET https://install.meteor.com/ | sed "s~RELEASE=".*"~RELEASE=$METEOR_RELEASE~g" | sh
+    fi
+}
 function install_node {
     rm -rf node_modules
 
 	if [[ $USE_SUDO -eq 1 ]]; then
-		echo "Insert password for $USER"
-		$APT install $NODE -y
 		$NPM -g install n
-		$N 4.8.4
-		$NPM -g install npm@4.6.1
+		$N $NODE_VERSION
+		$NPM -g install npm@$NPM_VERSION
 		$NPM -g install node-gyp
 		$NPM -g install node-pre-gyp
-		$NPM -g install fibers@1.0.15
+		$NPM -g install fibers@$FIBERS_VERSION
 	else
-		$SU -c "$APT install $NODE -y" root
+		$SU -c "$APT install $BUILD_DEPS -y" root
 		$SU -c "$NPM -g install n" root
-		$SU -c "$N 4.8.4" root
-		$SU -c "$NPM -g install npm@4.6.1" root
+		$SU -c "$N $NODE_VERSION" root
+		$SU -c "$NPM -g install npm@$NPM_VERSION" root
 		$SU -c "$NPM -g install node-gyp" root
 		$SU -c "$NPM -g install node-pre-gyp" root
-		$SU -c "$NPM -g install fibers@1.0.15" root
+		$SU -c "$NPM -g install fibers@$FIBERS_VERSION" root
 	fi
 	npm install
 }
@@ -138,65 +158,49 @@ function del_wekan_build {
 	test -d $WEKAN_BUILD || rm -rf $WEKAN_BUILD
 }
 function build_wekan {
-    if [[ -d "$(pwd)/wekan" ]]; then
+    test -f "$METEOR" || install_deps
+    if [[ -d "$WEKAN_SRC" ]]; then
         echo "Existing sources found."
         read -p "Do you want to clear sources?" SOURCES_DELETE
-
         if [[ $SOURCES_DELETE = 'y' || $SOURCES_DELETE = 'Y' ]]; then
             clear_wekan
-			git_clone_wekan
-			git_clone_wekan_packages
+            git_clone_wekan
+            git_clone_wekan_packages
         fi
-	else
-		git_clone_wekan
-		git_clone_wekan_packages
+    else
+	git_clone_wekan
+	git_clone_wekan_packages
     fi
 
-	del_wekan_build
-	install_node
+    del_wekan_build
+    install_node
     config_wekan
 
-	#
-	# Building with meteor
-	# TODO Handle meteor
-	#
-	meteor build $WEKAN_BUILD --directory
+    #
+    # Building with meteor
+    # TODO Handle meteor
+    #
+    meteor build $WEKAN_BUILD --directory
 
-	cp fix-download-unicode/cfs_access-point.txt $WEKAN_BUILD/bundle/programs/server/packages/cfs_access-point.js
-	sed -i "s|build\/Release\/bson|browser_build\/bson|g" $WEKAN_BUILD/bundle/programs/server/npm/node_modules/meteor/cfs_gridfs/node_modules/mongodb/node_modules/bson/ext/index.js
+    cp fix-download-unicode/cfs_access-point.txt $WEKAN_BUILD/bundle/programs/server/packages/cfs_access-point.js
+    sed -i "s|build\/Release\/bson|browser_build\/bson|g" $WEKAN_BUILD/bundle/programs/server/npm/node_modules/meteor/cfs_gridfs/node_modules/mongodb/node_modules/bson/ext/index.js
 
-	pushd $WEKAN_BUILD/bundle/programs/server/npm/node_modules/meteor/npm-bcrypt
-	rm -rf node_modules/bcrypt
-	npm install bcrypt
-	popd
-	pushd $WEKAN_BUILD/bundle/programs/server
-	npm install
-	popd
+    pushd $WEKAN_BUILD/bundle/programs/server/npm/node_modules/meteor/npm-bcrypt
+    rm -rf node_modules/bcrypt
+    npm install bcrypt
+    popd
+    pushd $WEKAN_BUILD/bundle/programs/server
+    npm install
+    popd
 }
 
 
-#init
-#init_env
-if [[ $USE_SUDO -eq 1 ]]; then
-	RM=$SUDO $RM
-	APT=$SUDO $APT
-	NPM=$SUDO $NPM
-	N=$SUDO $N
-fi
-
 if [[ "$1" = '--help' ]]; then
     echo "--help     this help"
-    echo "--root     execute wekan.sh root (handy with no sudo installed)"
     echo "--start    run Wekan"
-	echo "--version  script version"
-fi
-
-if [[ "$1" = '--root' ]]; then
-    if [[ $UID -ne 0 ]]; then
-        echo "You have to be root to execute wekan.sh with the -root option"
-        exit
-    fi
-    del_node_mods
+    echo "--version  script version"
+    #TODO print node and meteor version
+    echo "--deps_version Node.js, meteor version"
 fi
 
 if [[ "$1" = '--start' ]]; then
@@ -209,37 +213,39 @@ if [[ "$1" = '--start' ]]; then
 fi
 
 if [[ "$1" = '--version' ]]; then
-	echo Version: $VERSION
+	echo Version: $SCRIPT_VERSION
 fi
 
-if [[ "$1" = '--install-with-meteor' ]]; then
-	curl https://install.meteor.com/ | sh
+if [[ "$1" = '--install_deps' ]]; then
+   install_deps 
 fi
 
 if [[ "$1" = '' ]]; then
-	echo "WELCOME TO WEKAN (standalone) INSTALLATION"
-	echo "------------------------------------------"
-	echo "This script installs WEKAN sources in the $WEKAN folder and build them in $WEKAN_BUILD"
-	# Detect sudo and su
-	test -f $SUDO && USE_SUDO=1 || USE_SUDO=0
-	test -f $SU && USE_SU=1 || USE_SU=0
-
-	if [[ $USE_SUDO -eq 1 ]]; then
-		read -p "==> [INFO] sudo has been detected. Do you want to use it?  [yY]" USE_SUDO
-		if [[ "$USE_SUDO" = 'y' || "$USE_SUDO" = 'Y' ]]; then
-			echo "==> [SUDO] selected"
-		else
-			USE_SUDO=0
-		fi
-	fi
-
-	if [[ "$UID" -eq 0 ]]; then
+	
+        if [[ "$UID" -eq 0 ]]; then
 		echo "Do no execut this script as root. You will be prompted for the password."
 		exit
-	else
-    	build_wekan
-	fi
+        fi
 
+	echo "WELCOME TO WEKAN_SRC (standalone) INSTALLATION"
+	echo "------------------------------------------"
+	echo "This script installs Wekan sources in the $WEKAN_SRC folder and build them in $WEKAN_BUILD"
+	# Detect sudo and su
+	test -f $SUDO && USE_SUDO=1 || USE_SUDO=0
+
+	if [[ $USE_SUDO -eq 1 ]]; then
+            read -p "==> [INFO] sudo has been detected. Do you want to use it?  [yY]" USE_SUDO
+            if [[ "$USE_SUDO" = 'y' || "$USE_SUDO" = 'Y' ]]; then
+                USE_SUDO=1
+                RM="$SUDO $RM"
+                APT="$SUDO $APT"
+                NPM="$SUDO $NPM"
+                N="$SUDO $N"
+                echo "==> [SUDO] selected"
+            else
+                USE_SUDO=0
+            fi
+	fi
+    	build_wekan
 fi
 
-# END INSTALL
