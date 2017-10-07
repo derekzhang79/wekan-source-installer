@@ -6,7 +6,7 @@
 # Copyright 2017, GNU General Public License Version 3
 
 GOSU_VERSION=1.10
-SCRIPT_VERSION=0.2.0
+SCRIPT_VERSION=0.2.1
 
 NODE_VERSION=4.8.4
 METEOR_RELEASE=1.4.4.1
@@ -51,7 +51,7 @@ PORT=3000
 # END WEKAN_SRC SETTINGS
 
 # init
-declare -a NODE_MODULES=('/usr/local/lib/node_modules' '~/.npm');
+declare -a NODE_MODULES_PATH=('/usr/local/lib/node_modules' '~/.npm');
 
 function config_wekan {
 	sed -i 's/api\.versionsFrom/\/\/api.versionsFrom/' $WEKAN_SRC/packages/meteor-useraccounts-core/package.js
@@ -79,7 +79,7 @@ function git_clone_wekan {
     $GIT clone -q https://github.com/wekan/wekan src
     if [[ $? -gt 0 ]]; then
         echo "[FAILED]"
-        echo "An unknown error accourred: $?"
+        echo "An error accourred: $?"
         exit
     else
         echo "[OK]"
@@ -92,7 +92,7 @@ function git_clone_wekan_packages {
     $GIT clone -q https://github.com/wekan/flow-router.git kadira-flow-router
     if [[ $? -gt 0 ]]; then
         echo "[FAILED]"
-        echo "An unknown error accourred: $?"
+        echo "An error accourred: $?"
         exit
     else
         echo "[OK]"
@@ -101,17 +101,14 @@ function git_clone_wekan_packages {
     $GIT clone -q https://github.com/meteor-useraccounts/core.git meteor-useraccounts-core
     if [[ $? -gt 0 ]]; then
         echo "[FAILED]"
-        echo "An unknown error accourred: $?"
+        echo "An error accourred: $?"
         exit
     else
         echo "[OK]"
     fi
     popd
 }
-function clear_wekan {
-    #clean node modules
-    rm -rf $(pwd)/wekan
-}
+
 function install_deps {
     for d in $BUILD_DEPS;
     do
@@ -121,62 +118,69 @@ function install_deps {
     if [[ $PKG_INST -eq 1 ]]; then
         $APT install $BUILD_DEPS
     fi
+
     test -f $METEOR || PKG_INST=1
     if [[ $PKG_INST -eq 1 ]]; then
         $WGET https://install.meteor.com/ | sed "s~RELEASE=".*"~RELEASE=$METEOR_RELEASE~g" | sh
     fi
 }
+
 function install_node {
+    #TODO Check if modules are already installed 
+
     rm -rf node_modules
 
-	if [[ $USE_SUDO -eq 1 ]]; then
-		$NPM -g install n
-		$N $NODE_VERSION
-		$NPM -g install npm@$NPM_VERSION
-		$NPM -g install node-gyp
-		$NPM -g install node-pre-gyp
-		$NPM -g install fibers@$FIBERS_VERSION
-	else
-		$SU -c "$APT install $BUILD_DEPS -y" root
-		$SU -c "$NPM -g install n" root
-		$SU -c "$N $NODE_VERSION" root
-		$SU -c "$NPM -g install npm@$NPM_VERSION" root
-		$SU -c "$NPM -g install node-gyp" root
-		$SU -c "$NPM -g install node-pre-gyp" root
-		$SU -c "$NPM -g install fibers@$FIBERS_VERSION" root
-	fi
-	npm install
+    if [[ $USE_SUDO -eq 1 ]]; then
+        $NPM -g install n
+        $N $NODE_VERSION
+        $NPM -g install npm@$NPM_VERSION
+        $NPM -g install node-gyp
+        $NPM -g install node-pre-gyp
+        $NPM -g install fibers@$FIBERS_VERSION
+    else
+        $SU -c "$APT install $BUILD_DEPS -y" root
+        $SU -c "$NPM -g install n" root
+        $SU -c "$N $NODE_VERSION" root
+        $SU -c "$NPM -g install npm@$NPM_VERSION" root
+        $SU -c "$NPM -g install node-gyp" root
+        $SU -c "$NPM -g install node-pre-gyp" root
+        $SU -c "$NPM -g install fibers@$FIBERS_VERSION" root
+    fi
+    npm install
 }
+
 function del_node_mods {
-    for m in "${NODE_MODULES[@]}";
-        do
-	if [[ -d "$sm" ]]; then
+    for m in "${NODE_MODULES_PATH[@]}";
+    do
+        if [[ -d "$sm" ]]; then
             printf "Cleaning $m..."
-			if [[ $USE_SUDO -eq 1 ]]; then
-            	$RM -rf "$m"
-			else
-				$SU -c "$RM -rf $m" root
-			fi
+            if [[ $USE_SUDO -eq 1 ]]; then
+                $RM -rf "$m"
+            else
+		$SU -c "$RM -rf $m" root
+	    fi
             echo "[OK]"
 	fi
     done
 }
+
 function del_wekan_build {
 	test -d $WEKAN_BUILD || rm -rf $WEKAN_BUILD
 }
+
 function build_wekan {
     test -f "$METEOR" || install_deps
     if [[ -d "$WEKAN_SRC" ]]; then
         echo "Existing sources found."
         read -p "Do you want to clear sources?" SOURCES_DELETE
         if [[ $SOURCES_DELETE = 'y' || $SOURCES_DELETE = 'Y' ]]; then
-            clear_wekan
+            rm -rf $WEKAN_SRC
             git_clone_wekan
             git_clone_wekan_packages
         fi
     else
-	git_clone_wekan
-	git_clone_wekan_packages
+        git_clone_wekan
+        git_clone_wekan_packages
     fi
 
     del_wekan_build
@@ -185,8 +189,8 @@ function build_wekan {
 
     #
     # Building with meteor
-    # TODO Handle meteor
     #
+
     meteor build $WEKAN_BUILD --directory
 
     cp fix-download-unicode/cfs_access-point.txt $WEKAN_BUILD/bundle/programs/server/packages/cfs_access-point.js
@@ -201,13 +205,10 @@ function build_wekan {
     popd
 }
 
-
 if [[ "$1" = '--help' ]]; then
     echo "--help     this help"
     echo "--start    run Wekan"
-    echo "--version  script version"
-    #TODO print node and meteor version
-    echo "--deps_version Node.js, meteor version"
+    echo "--version  Installer and deps version"
 fi
 
 if [[ "$1" = '--start' ]]; then
@@ -218,9 +219,23 @@ if [[ "$1" = '--start' ]]; then
 	export PORT=$PORT
 	node main.js
 fi
-
 if [[ "$1" = '--version' ]]; then
-	echo Version: $SCRIPT_VERSION
+    echo Installer Version: $SCRIPT_VERSION
+
+    if [[ -z "$NODE" ]]; then
+        echo "Node is not installed."
+        exit
+    else
+        echo "Node is installed at $NODE"
+        echo "Version: $($NODE -v)"
+    fi
+    if [[ -z "$METEOR" ]]; then
+        echo "Meteor is not installed."
+        exit
+    else
+        echo "Meteor is installed at $METEOR"
+        echo "Version: $($METEOR --version)"
+    fi
 fi
 
 if [[ "$1" = '--install_deps' ]]; then
@@ -234,7 +249,7 @@ if [[ "$1" = '' ]]; then
 		exit
         fi
 
-	echo "WELCOME TO WEKAN_SRC (standalone) INSTALLATION"
+	echo "WELCOME TO WEKAN (standalone) INSTALLATION"
 	echo "------------------------------------------"
 	echo "This script installs Wekan sources in the $WEKAN_SRC folder and build them in $WEKAN_BUILD"
 	# Detect sudo and su
@@ -243,11 +258,11 @@ if [[ "$1" = '' ]]; then
 	if [[ $USE_SUDO -eq 1 ]]; then
             read -p "==> [INFO] sudo has been detected. Do you want to use it?  [yY]" USE_SUDO
             if [[ "$USE_SUDO" = 'y' || "$USE_SUDO" = 'Y' ]]; then
-                USE_SUDO=1
-                RM="$SUDO $RM"
                 APT="$SUDO $APT"
-                NPM="$SUDO $NPM"
                 N="$SUDO $N"
+                NPM="$SUDO $NPM"
+                RM="$SUDO $RM"
+                USE_SUDO=1
                 echo "==> [SUDO] selected"
             else
                 USE_SUDO=0
