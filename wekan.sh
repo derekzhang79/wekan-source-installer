@@ -15,16 +15,16 @@ NPM_VERSION=4.6.1
 FIBERS_VERSION=1.0.15
 BUILD_DEPS="build-essential g++ capnproto nodejs nodejs-legacy npm git curl"
 
-SUDO=$(which sudo)
-SU=$(which su)
-NODE=$(which node)
-RM=$(which rm)
-GIT=$(which git)
-WGET="$(which wget) -qO-"
 APT=$(which apt-get)
-NPM=$(which npm)
+GIT=$(which git)
 METEOR=$(which meteor)
 N=$(which n)
+NODE=$(which node)
+NPM=$(which npm)
+RM=$(which rm)
+SUDO=$(which sudo)
+SU=$(which su)
+WGET="$(which wget) -qO-"
 
 WEKAN=$(pwd)/wekan
 WEKAN_SRC=$WEKAN/src
@@ -75,29 +75,36 @@ function git_clone_wekan {
 
     test -d $WEKAN || mkdir $WEKAN
     pushd $WEKAN
-    $GIT clone https://github.com/wekan/wekan src
+    printf "Getting Wekan..."
+    $GIT clone -q https://github.com/wekan/wekan src
     if [[ $? -gt 0 ]]; then
         echo "[FAILED]"
         echo "An unknown error accourred: $?"
         exit
+    else
+        echo "[OK]"
     fi
 }
 
 function git_clone_wekan_packages {
     pushd $WEKAN_SRC && mkdir packages && pushd packages
-
-    $GIT clone https://github.com/wekan/flow-router.git kadira-flow-router
+    printf "Getting kadira-flow-router..."
+    $GIT clone -q https://github.com/wekan/flow-router.git kadira-flow-router
     if [[ $? -gt 0 ]]; then
         echo "[FAILED]"
         echo "An unknown error accourred: $?"
         exit
+    else
+        echo "[OK]"
     fi
-
-    $GIT clone https://github.com/meteor-useraccounts/core.git meteor-useraccounts-core
+    printf "Getting meteor-useraccounts-core..."
+    $GIT clone -q https://github.com/meteor-useraccounts/core.git meteor-useraccounts-core
     if [[ $? -gt 0 ]]; then
         echo "[FAILED]"
         echo "An unknown error accourred: $?"
         exit
+    else
+        echo "[OK]"
     fi
     popd
 }
