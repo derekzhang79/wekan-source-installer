@@ -112,7 +112,7 @@ function git_clone_wekan_packages {
 function install_deps {
     for d in $BUILD_DEPS;
     do
-        test -z "$(dpkg -l | grep $d | awk '{print $2}')" && PKG_INST=1
+        test "$(dpkg-query -s $d)" || PKG_INST=1
     done
 
     if [[ $PKG_INST -eq 1 ]]; then
