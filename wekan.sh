@@ -6,7 +6,7 @@
 # Copyright 2017, GNU General Public License Version 3
 
 GOSU_VERSION=1.10
-SCRIPT_VERSION=0.2.1
+SCRIPT_VERSION=0.2.2
 
 NODE_VERSION=4.8.4
 METEOR_RELEASE=1.4.4.1
@@ -15,7 +15,7 @@ NPM_VERSION=4.6.1
 FIBERS_VERSION=1.0.15
 BUILD_DEPS="build-essential g++ capnproto nodejs nodejs-legacy npm git curl"
 
-APT=$(which apt-get)
+APT_GET=$(which apt-get)
 GIT=$(which git)
 METEOR=$(which meteor)
 N=$(which n)
@@ -116,13 +116,10 @@ function install_deps {
     done
 
     if [[ $PKG_INST -eq 1 ]]; then
-        $APT install $BUILD_DEPS
+        $APT_GET -y install $BUILD_DEPS
     fi
 
-    test -f $METEOR || PKG_INST=1
-    if [[ $PKG_INST -eq 1 ]]; then
-        $WGET https://install.meteor.com/ | sed "s~RELEASE=".*"~RELEASE=$METEOR_RELEASE~g" | sh
-    fi
+    test -z "$METEOR" && { echo -e "Meteor not found.\nInstalling version $METEOR_RELEASE...";$WGET https://install.meteor.com/ | sed "s~RELEASE=".*"~RELEASE=$METEOR_RELEASE~g" | sh; }
 }
 
 function install_node {
@@ -138,7 +135,7 @@ function install_node {
         $NPM -g install node-pre-gyp
         $NPM -g install fibers@$FIBERS_VERSION
     else
-        $SU -c "$APT install $BUILD_DEPS -y" root
+        $SU -c "$APT_GET install $BUILD_DEPS -y" root
         $SU -c "$NPM -g install n" root
         $SU -c "$N $NODE_VERSION" root
         $SU -c "$NPM -g install npm@$NPM_VERSION" root
@@ -258,7 +255,7 @@ if [[ "$1" = '' ]]; then
 	if [[ $USE_SUDO -eq 1 ]]; then
             read -p "==> [INFO] sudo has been detected. Do you want to use it?  [yY]" USE_SUDO
             if [[ "$USE_SUDO" = 'y' || "$USE_SUDO" = 'Y' ]]; then
-                APT="$SUDO $APT"
+                APT_GET="$SUDO $APT_GET"
                 N="$SUDO $N"
                 NPM="$SUDO $NPM"
                 RM="$SUDO $RM"
