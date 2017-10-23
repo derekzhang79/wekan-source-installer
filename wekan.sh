@@ -5,32 +5,7 @@
 # - written by Salvatore De Paolis <iwkse@claws-mail.org>
 # Copyright 2017, GNU General Public License Version 3
 
-GOSU_VERSION=1.10
-SCRIPT_VERSION=0.2.2
-
-NODE_VERSION=4.8.4
-METEOR_RELEASE=1.4.4.1
-METEOR_EDGE=1.5.beta.17
-NPM_VERSION=4.6.1
-FIBERS_VERSION=1.0.15
-BUILD_DEPS="build-essential g++ capnproto nodejs nodejs-legacy npm git curl"
-
-APT_GET=$(which apt-get)
-GIT=$(which git)
-METEOR=$(which meteor)
-N=$(which n)
-NODE=$(which node)
-NPM=$(which npm)
-RM=$(which rm)
-SUDO=$(which sudo)
-SU=$(which su)
-WGET="$(which wget) -qO-"
-
-WEKAN=$(pwd)/wekan
-WEKAN_SRC=$WEKAN/src
-WEKAN_BUILD=$WEKAN/build
-
-# START WEKAN_SRC SETTINGS
+# Wekan settings
 
 # 1) Full URL to your wekan, for example:
 #     http://example.com/wekan
@@ -48,14 +23,51 @@ MAIL_URL='smtp://user:pass@mailserver.example.com:25/'
 # 5) Port where Wekan is running on localhost
 PORT=3000
 
-# END WEKAN_SRC SETTINGS
+# Version
+SCRIPT_VERSION=0.2.3
+GOSU_VERSION=1.10
+NODE_VERSION=4.8.4
+METEOR_RELEASE=1.4.4.1
+METEOR_EDGE=1.5.beta.17
+NPM_VERSION=4.6.1
+FIBERS_VERSION=1.0.15
+BUILD_DEPS="build-essential g++ capnproto nodejs nodejs-legacy npm git curl"
 
-# init
+# Tools
+
+APT_GET=$(which apt-get)
+GIT=$(which git)
+SUDO=$(which sudo)
+SU=$(which su)
+WGET="$(which wget) -qO-"
+RM=$(which rm)
+
+# Environment
+
+METEOR=$(which meteor)
+N=$(which n)
+NODE=$(which node)
+NPM=$(which npm)
+WEKAN=$(pwd)/wekan
+WEKAN_SRC=$WEKAN/src
+WEKAN_BUILD=$WEKAN/build
+
+# Web server
+
+NGINX_PERM="www-data:www-data"
+NGINX=$(which nginx)
+
 declare -a NODE_MODULES_PATH=('/usr/local/lib/node_modules' '~/.npm');
+
+# -----------------------------------------------------------------------------
 
 function config_wekan {
 	sed -i 's/api\.versionsFrom/\/\/api.versionsFrom/' $WEKAN_SRC/packages/meteor-useraccounts-core/package.js
 	test $WEKAN_SRC/package-lock.json || rm $WEKAN_SRC/package-lock.json
+}
+
+function set_perm {
+    chmod -R $NGINX_PERM $WEKAN_BUILD
 }
 
 function use_command {
@@ -239,7 +251,7 @@ if [[ "$1" = '--install_deps' ]]; then
    install_deps 
 fi
 
-if [[ "$1" = '' ]]; then
+if [[ -z "$1" ]]; then
 	
         if [[ "$UID" -eq 0 ]]; then
 		echo "Do no execut this script as root. You will be prompted for the password."
@@ -266,5 +278,6 @@ if [[ "$1" = '' ]]; then
             fi
 	fi
     	build_wekan
+        test -z "$NGINX" || set_perm
 fi
 
